@@ -64,7 +64,7 @@ body {
 header.top { background: var(--bg); }
 header.top .bar { display: flex; align-items: center; justify-content: space-between; padding-top: 16px; padding-bottom: 8px; }
 .hright { display: flex; align-items: center; gap: 12px; }
-.brand { font-weight: 800; font-size: 21px; letter-spacing: -0.4px; }
+.brand { font-weight: 800; font-size: 21px; letter-spacing: -0.4px; cursor: pointer; }
 .brand em { font-style: normal; color: var(--accent); }
 
 nav.nav { display: flex; }
@@ -158,14 +158,6 @@ label.opt input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(
 .todaymeal .tname { flex: 1; min-width: 0; }
 .todaymeal .tname b { font-size: 17px; font-weight: 650; letter-spacing: -0.2px; display: block; }
 .todaymeal .tname .meta { color: var(--muted); font-size: 12.5px; }
-.quickcook {
-  flex-shrink: 0; cursor: pointer;
-  border: 1.5px solid var(--line); background: none; color: var(--ink-2);
-  border-radius: 999px; font: inherit; font-size: 13px; font-weight: 650;
-  padding: 8px 16px; min-height: 38px;
-}
-.quickcook.done { background: var(--good); border-color: var(--good); color: #fff; }
-
 /* ---------- week list ---------- */
 .daygrid { display: grid; grid-template-columns: 1fr; }
 @media (min-width: 1000px) { .daygrid { grid-template-columns: 1fr 1fr; gap: 0 14px; } }
@@ -188,14 +180,6 @@ label.opt input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(
 .dot.mx { background: var(--c-mx); } .dot.si { background: var(--c-si); }
 .dot.st { background: var(--c-st); } .dot.gn { background: var(--c-gn); }
 .dot.dr { background: var(--c-dr); } .dot.ds { background: var(--c-ds); }
-
-.status {
-  font-size: 11px; font-weight: 650; padding: 4px 10px; border-radius: 999px;
-  background: var(--chip); color: var(--ink-2); flex-shrink: 0;
-}
-.status.cooked { background: var(--good); color: #fff; }
-.status.skipped { background: var(--bad); color: #fff; }
-.status.outside, .status.ordered { background: var(--ink-2); color: var(--bg); }
 
 /* ---------- balance flags ---------- */
 .flags { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -264,28 +248,19 @@ label.opt input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(
 .overlay {
   display: none; position: fixed; inset: 0; z-index: 50;
   background: rgba(0, 0, 0, 0.45);
-  align-items: flex-end; justify-content: center;
+  align-items: center; justify-content: center;
+  padding: 5%;
 }
 .overlay.on { display: flex; }
 .sheet {
-  background: var(--surface); width: 100%; max-width: 760px;
-  border-radius: 22px 22px 0 0; padding: 10px 20px 30px;
-  max-height: 88vh; overflow-y: auto;
-}
-.sheet::before {
-  content: ""; display: block; width: 40px; height: 4px; border-radius: 2px;
-  background: var(--line); margin: 4px auto 14px;
+  background: var(--surface); width: 100%; max-width: 640px;
+  border-radius: 22px; padding: 22px 22px 26px;
+  max-height: 85vh; overflow-y: auto;
 }
 .sheet h2 { font-size: 18px; }
 .sheet .close { float: right; background: none; border: none; font-size: 22px; color: var(--muted); cursor: pointer; padding: 0 4px; }
 .btngrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
 .btngrid button { width: 100%; }
-.statusgrid { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
-.statusgrid button {
-  background: var(--chip); border: 1.5px solid transparent; border-radius: 999px;
-  font: inherit; font-size: 13.5px; padding: 9px 16px; cursor: pointer; color: var(--ink); min-height: 40px;
-}
-.statusgrid button.on { border-color: var(--accent); color: var(--accent); font-weight: 650; }
 .ingtable { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
 .ingtable td { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .ingtable td:last-child { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -364,11 +339,3 @@ textarea {
   .tourcard p { font-size: 15.5px; }
 }
 
-/* ---------- print ---------- */
-@media print {
-  header.top, nav.nav, .noprint, button, input[type="checkbox"] { display: none !important; }
-  body { background: #fff; color: #000; padding: 0; }
-  .card, .tile { border: 1px solid #ccc; box-shadow: none; break-inside: avoid; }
-  section.tabpane { display: none; }
-  section.tabpane.on { display: block; }
-}

@@ -10,10 +10,6 @@ var CUI = {
   st: "Street & Snacks", gn: "Light & General", dr: "Drinks", ds: "Desserts"
 };
 var CUI_ORDER = ["gu", "pu", "mx", "si", "st", "gn", "dr", "ds"];
-var STATUSES = [
-  ["planned", "Planned"], ["cooked", "Cooked"], ["skipped", "Skipped"],
-  ["outside", "Ate outside"], ["ordered", "Ordered in"]
-];
 var OCCASIONS = [
   ["normal", "Normal week"], ["light", "Light & healthy"], ["street", "Street-food weekend"],
   ["guest", "Guests on weekend"], ["festival", "Festival week"]
@@ -105,18 +101,17 @@ function isWeekendISO(iso) { var g = parseISO(iso).getDay(); return g === 0 || g
 
 // ---------- history index ----------
 function buildHist() {
-  var h = { lastCooked: {}, lastSkipped: {}, lastPlanned: {}, cookCount: {}, skipCount: {} };
+  // no per-meal tracking anymore: a past planned meal counts as "had",
+  // a today/future meal counts as "planned" (keeps repeats away)
+  var h = { lastCooked: {}, lastSkipped: {}, lastPlanned: {} };
+  var t = todayISO();
   P().weeks.forEach(function (w) {
     w.days.forEach(function (day) {
       ["b", "d"].forEach(function (slot) {
         var m = day[slot];
         if (!m || !m.id) return;
-        if (m.status === "cooked") {
+        if (day.date < t) {
           if (!h.lastCooked[m.id] || day.date > h.lastCooked[m.id]) h.lastCooked[m.id] = day.date;
-          h.cookCount[m.id] = (h.cookCount[m.id] || 0) + 1;
-        } else if (m.status === "skipped" || m.status === "outside" || m.status === "ordered") {
-          if (!h.lastSkipped[m.id] || day.date > h.lastSkipped[m.id]) h.lastSkipped[m.id] = day.date;
-          h.skipCount[m.id] = (h.skipCount[m.id] || 0) + 1;
         } else {
           if (!h.lastPlanned[m.id] || day.date > h.lastPlanned[m.id]) h.lastPlanned[m.id] = day.date;
         }
@@ -377,7 +372,6 @@ function aggWeek(w, slot) {
   var scale = (P().prefs.people || 3) / 3;
   w.days.forEach(function (day) {
     var m = day[slot]; if (!m || !m.id) return;
-    if (m.status === "skipped" || m.status === "outside" || m.status === "ordered") return;
     var d = byId[m.id]; if (!d) return;
     d.ing.forEach(function (ing) {
       var key = ing[0] + "|" + ing[2] + "|" + ing[3];
@@ -470,7 +464,7 @@ function renderPlan() {
       "</div>";
   }
   h += helpCard("plan", [
-    "<b>Today card</b> below — that is what to cook today. Hit “Cooked?” once it is made.",
+    "<b>Today card</b> below — that is what to cook today, breakfast and dinner.",
     "<b>Tap any meal</b> in the week to swap the dish, move it to another day, lock it, or read the recipe.",
     "<b>Grocery tab</b> has the whole week’s shopping — it updates itself whenever you change the menu."
   ]);
@@ -487,11 +481,6 @@ function renderPlan() {
           '<span class="slotchip">' + (slot === "b" ? "B" : "D") + "</span>";
         if (d) {
           h += '<span class="tname"><b>' + esc(d.name) + '</b><span class="meta">' + CUI[d.cui] + " · " + d.nut[0] + " kcal · " + d.mins + " min</span></span>";
-          if (m.status === "planned" || m.status === "cooked") {
-            h += '<button class="quickcook' + (m.status === "cooked" ? " done" : "") + '" onclick="event.stopPropagation();quickCook(\'' + w.id + "'," + tdi + ",'" + slot + "')\">" + (m.status === "cooked" ? "Cooked" : "Cooked?") + "</button>";
-          } else {
-            h += '<span class="status ' + m.status + '">' + statusLabel(m.status) + "</span>";
-          }
         } else {
           h += '<span class="tname"><b class="sub">Tap to choose a dish</b></span>';
         }
@@ -505,9 +494,7 @@ function renderPlan() {
     '<span class="sub">' + occLabel + (w.quick ? " · quick" : "") + (P().prefs.jain ? " · Jain" : "") + " · " + esc(P().name) + "</span></div>" +
     '<div class="row">' +
     '<button class="btn ghost small" onclick="surpriseMe()">Surprise me</button>' +
-    '<button class="btn ghost small" onclick="regenWeek(\'' + w.id + '\')">Regenerate</button>' +
     '<button class="btn ghost small" onclick="planNext()">Plan next week</button>' +
-    '<button class="btn ghost small" onclick="window.print()">Print</button>' +
     "</div></div>";
 
   var wf = weekFlags(w);
@@ -528,8 +515,7 @@ function renderPlan() {
         h += '<span class="dot ' + d.cui + '"></span>' +
           '<span class="name">' + esc(d.name) +
           '<span class="meta">' + CUI[d.cui] + " · " + d.nut[0] + " kcal · " + d.mins + " min" + "</span></span>" +
-          (m.locked ? '<span class="lockmark">locked</span>' : "") +
-          '<span class="status ' + m.status + '">' + statusLabel(m.status) + "</span>";
+          (m.locked ? '<span class="lockmark">locked</span>' : "");
       } else {
         h += '<span class="name sub">Tap to choose a dish</span>';
       }
@@ -540,7 +526,6 @@ function renderPlan() {
   h += "</div>";
   el("pane-plan").innerHTML = h;
 }
-function statusLabel(s) { return (STATUSES.find(function (x) { return x[0] === s; }) || ["", s])[1]; }
 
 function doGenerate() {
   var start = el("genStart").value || todayISO();
@@ -549,11 +534,6 @@ function doGenerate() {
   var w = genWeek(start, occ, quick, null);
   P().weeks.push(w);
   planViewId = w.id;
-  save(); render();
-}
-function regenWeek(id) {
-  var w = weekById(id); if (!w) return;
-  genWeek(w.start, w.occasion, w.quick, w);
   save(); render();
 }
 function planNext() {
@@ -574,28 +554,13 @@ function openMealSheet(weekId, di, slot) {
   var h = '<button class="close" onclick="closeSheet()">×</button>' +
     "<h2>" + esc(d.name) + "</h2>" +
     '<p class="sub">' + CUI[d.cui] + " · " + fmtDate(w.days[di].date) + " · " + (slot === "b" ? "Breakfast" : "Dinner") + "</p>" +
-    '<div class="statusgrid">' +
-    STATUSES.map(function (s) {
-      return '<button class="' + (m.status === s[0] ? "on" : "") + '" onclick="setStatus(\'' + weekId + "'," + di + ",'" + slot + "','" + s[0] + "')\">" + s[1] + "</button>";
-    }).join("") + "</div>" +
     '<div class="btngrid">' +
     '<button class="btn ghost" onclick="openDishDetail(\'' + d.id + '\')">Recipe & nutrition</button>' +
     '<button class="btn ghost" onclick="openPicker(\'' + weekId + "'," + di + ",'" + slot + "')\">Swap dish</button>" +
-    '<button class="btn ghost" onclick="toggleLock(\'' + weekId + "'," + di + ",'" + slot + "')\">" + (m.locked ? "Unlock" : "Lock (keep on regenerate)") + "</button>" +
+    '<button class="btn ghost" onclick="toggleLock(\'' + weekId + "'," + di + ",'" + slot + "')\">" + (m.locked ? "Unlock" : "Lock this meal") + "</button>" +
     '<button class="btn ghost" onclick="openMove(\'' + weekId + "'," + di + ",'" + slot + "')\">Move to another day</button>" +
     "</div>";
   openSheet(h);
-}
-function setStatus(weekId, di, slot, st) {
-  var w = weekById(weekId); if (!w) return;
-  w.days[di][slot].status = st;
-  save(); closeSheet(); render();
-}
-function quickCook(weekId, di, slot) {
-  var w = weekById(weekId); if (!w) return;
-  var m = w.days[di][slot];
-  m.status = m.status === "cooked" ? "planned" : "cooked";
-  save(); render();
 }
 function toggleLock(weekId, di, slot) {
   var w = weekById(weekId); if (!w) return;
@@ -652,7 +617,7 @@ function renderPicker() {
     h += '<div class="dishrow" onclick="pickDishManual(\'' + d.id + '\')">' +
       '<span class="dot ' + d.cui + '"></span>' +
       '<span class="name">' + esc(d.name) + '<span class="meta">' + CUI[d.cui] + " · " + d.nut[0] + " kcal · " + d.mins + " min" +
-      (lc ? " · cooked " + daysSince(lc, ref) + "d ago" : " · never cooked") + "</span></span></div>";
+      (lc ? " · had " + daysSince(lc, ref) + "d ago" : " · not had yet") + "</span></span></div>";
   });
   if (!pool.length) h += '<p class="empty">Nothing matches.</p>';
   openSheet(h);
@@ -681,12 +646,12 @@ function surpriseMe() {
     if (d.tags.indexOf("faraal") >= 0) return false;
     return !hist.lastCooked[d.id] || daysSince(hist.lastCooked[d.id], ref) > 21;
   });
-  if (!pool.length) { openSheet("<h2>Wah!</h2><p class='sub'>You have cooked everything recently. No underused dishes left.</p>"); return; }
+  if (!pool.length) { openSheet("<h2>Wah!</h2><p class='sub'>Everything has been on the menu recently. No underused dishes left.</p>"); return; }
   var d = pool[Math.floor(Math.random() * pool.length)];
   var w = currentWeek();
   var h = '<button class="close" onclick="closeSheet()">×</button><h2>Try this: ' + esc(d.name) + "</h2>" +
     '<p class="sub">' + CUI[d.cui] + " · " + d.nut[0] + " kcal · " + d.mins + " min · " +
-    (hist.lastCooked[d.id] ? "last cooked long back" : "never cooked yet") + "</p>" +
+    (hist.lastCooked[d.id] ? "last on the menu long back" : "never tried yet") + "</p>" +
     '<div class="btngrid">' +
     '<button class="btn ghost" onclick="openDishDetail(\'' + d.id + '\')">See recipe</button>' +
     '<button class="btn ghost" onclick="surpriseMe()">Show another</button>';
@@ -851,12 +816,11 @@ function renderGrocery() {
   var h = helpCard("grocery", [
     "<b>Three sections:</b> breakfast shopping, dinner shopping, and pantry staples — check the staples at home before buying.",
     "<b>Tick items</b> while you shop — ticks are saved. “Clear ticks” starts fresh.",
-    "This list <b>updates itself</b> when you swap or skip meals on the Week tab. Print it before going to the shop."
+    "This list <b>updates itself</b> when you swap or change meals on the Week tab."
   ]);
   h += '<div class="card noprint"><div class="row between"><h2 style="margin:0">Grocery · ' + fmtDate(w.start) + " – " + fmtDate(addDays(w.start, 6)) + "</h2>" +
-    '<div class="row"><button class="btn ghost small" onclick="clearChecks(\'' + w.id + '\')">Clear ticks</button>' +
-    '<button class="btn ghost small" onclick="window.print()">Print</button></div></div>' +
-    '<p class="sub" style="margin-top:6px">For ' + (P().prefs.people || 3) + " people. Auto-updates whenever you swap or change meals; skipped/outside meals excluded.</p></div>";
+    '<button class="btn ghost small" onclick="clearChecks(\'' + w.id + '\')">Clear ticks</button></div>' +
+    '<p class="sub" style="margin-top:6px">For ' + (P().prefs.people || 3) + " people. Auto-updates whenever you swap or change meals.</p></div>";
 
   var bAgg = aggWeek(w, "b"), dAgg = aggWeek(w, "d");
   h += grocerySection(w.id, "Breakfast — fresh shopping", bAgg, FRESH_CATS, checked, "b");
@@ -972,17 +936,9 @@ function pastWeeksHTML() {
   var weeks = sortedWeeks().slice().reverse();
   var h = '<div class="card"><h2>Past & planned weeks</h2>';
   weeks.forEach(function (w) {
-    var total = 0, cooked = 0;
-    w.days.forEach(function (day) {
-      ["b", "d"].forEach(function (s) {
-        var m = day[s]; if (!m || !m.id) return;
-        total++;
-        if (m.status === "cooked") cooked++;
-      });
-    });
     var live = w.start <= t && t <= addDays(w.start, 6);
     h += '<div class="histrow"><div class="grow"><b>' + fmtDate(w.start) + " – " + fmtDate(addDays(w.start, 6)) + "</b>" + (live ? ' <span class="sub">(current)</span>' : "") +
-      '<div class="sub">' + cooked + "/" + total + " cooked · " + ((OCCASIONS.find(function (o) { return o[0] === w.occasion; }) || ["", "normal"])[1]) + "</div></div>" +
+      '<div class="sub">' + ((OCCASIONS.find(function (o) { return o[0] === w.occasion; }) || ["", "normal"])[1]) + "</div></div>" +
       '<button class="btn ghost small" onclick="viewWeek(\'' + w.id + '\')">View</button>' +
       '<button class="btn ghost small" onclick="repeatWeek(\'' + w.id + '\')">Repeat</button>' +
       '<button class="btn ghost small" onclick="deleteWeek(\'' + w.id + '\')">Delete</button></div>';
@@ -997,7 +953,7 @@ function viewWeek(id) {
     ["b", "d"].forEach(function (s) {
       var m = day[s]; var d = m && m.id ? byId[m.id] : null;
       h += '<div class="meal" style="cursor:default"><span class="slot">' + (s === "b" ? "B" : "D") + "</span>" +
-        (d ? '<span class="dot ' + d.cui + '"></span><span class="name">' + esc(d.name) + '</span><span class="status ' + m.status + '">' + statusLabel(m.status) + "</span>" : '<span class="name sub">—</span>') + "</div>";
+        (d ? '<span class="dot ' + d.cui + '"></span><span class="name">' + esc(d.name) + "</span>" : '<span class="name sub">—</span>') + "</div>";
     });
   });
   openSheet(h);
@@ -1038,21 +994,21 @@ function renderGuide() {
     '<p class="sub">Every evening the same question — “aaje su banavvu?” — and somehow the same 10 dishes keep repeating while groceries get forgotten. Menu Masi ends that: it plans the whole week, writes the shopping list, keeps meals balanced, and slowly learns what your family actually loves.</p></div>';
 
   h += '<div class="card"><h2>Once a week — plan (2 minutes)</h2>' + steps([
-    "Go to <b>Week</b> and tap <b>“Plan my week”</b>. You get breakfast + dinner for 7 days: half Gujarati, some Punjabi/Mexican, street food sprinkled in — nothing you cooked recently.",
-    "Don't like something? <b>Tap the meal → Swap dish</b>. Love something? <b>Lock</b> it. Hit <b>Regenerate</b> and locked meals stay.",
+    "Go to <b>Week</b> and tap <b>“Plan my week”</b>. You get breakfast + dinner for 7 days: half Gujarati, some Punjabi/Mexican, street food sprinkled in — nothing from recent menus.",
+    "Don't like something? <b>Tap the meal → Swap dish</b>. Love something? <b>Lock</b> it. Wrong day? <b>Move</b> it.",
     "Special week? Choose an occasion while planning: light week, guests, festival, street-food weekend, or quick week for busy days."
   ]) + "</div>";
 
   h += '<div class="card"><h2>Once a week — shop (with the list)</h2>' + steps([
     "Open <b>Grocery</b>. It is already written from your menu: breakfast shopping, dinner shopping, pantry staples — quantities for your family size.",
     "First check the <b>staples section at home</b> — you probably have most of it.",
-    "Take the phone (or Print) to the shop and <b>tick items off</b> as you buy. Swapped a dish later? The list updates itself."
+    "Take the phone to the shop and <b>tick items off</b> as you buy. Swapped a dish later? The list updates itself."
   ]) + "</div>";
 
   h += '<div class="card"><h2>Every day — 10 seconds</h2>' + steps([
-    "Open the app. The <b>Today card</b> shows what to cook — breakfast and dinner.",
-    "Cooked it? Tap <b>“Cooked?”</b>. Skipped, ate outside or ordered? Tap the meal and mark that.",
-    "That is all. The app learns: cooked dishes rest for a while, skipped ones come back soon, and menus keep getting smarter."
+    "Open the app. The <b>Today card</b> shows what to cook — breakfast and dinner. That is it.",
+    "Plans changed? Tap the meal and <b>swap or move</b> it — grocery adjusts on its own.",
+    "Dishes from past menus rest for a few weeks automatically, so the same thing never keeps repeating."
   ]) + "</div>";
 
   h += '<div class="card"><h2>Make it yours</h2>' + steps([
@@ -1220,12 +1176,12 @@ var TOUR = [
   {
     kicker: "Step 1 of 5",
     title: "Plan your week in one tap",
-    body: "Hit “Plan my week” on the Week tab and boom — breakfast and dinner for all 7 days. Half Gujarati, some Punjabi and Mexican, street food sprinkled in. Nothing you cooked recently, everything balanced automatically."
+    body: "Hit “Plan my week” on the Week tab and boom — breakfast and dinner for all 7 days. Half Gujarati, some Punjabi and Mexican, street food sprinkled in. Nothing from recent menus, everything balanced automatically."
   },
   {
     kicker: "Step 2 of 5",
-    title: "Tell it what happened",
-    body: "Cooked it? One tap on “Cooked?” right on today's card. Skipped, went out, ordered in? Tap the meal and pick. Menu Masi remembers — it won't repeat last week's dinner, but it will bring back dishes you skipped."
+    title: "Shape the week your way",
+    body: "Tap any meal to swap it for something else, move it to another day, lock a favourite, or read the recipe. Menu Masi remembers what was on recent menus, so next week never repeats last week."
   },
   {
     kicker: "Step 3 of 5",
