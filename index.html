@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Menu Masi — Family Meal Planner</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top noprint">
+  <div class="wrap bar">
+    <div class="brand">Menu <em>Masi</em></div>
+    <div class="hright">
+    <nav class="nav" id="tabs">
+      <button data-tab="plan" class="on">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>
+        <span>Week</span>
+      </button>
+      <button data-tab="grocery">
+        <svg viewBox="0 0 24 24"><path d="M6 7h12l1.5 13h-15z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        <span>Grocery</span>
+      </button>
+      <button data-tab="dishes">
+        <svg viewBox="0 0 24 24"><path d="M4 11h16a8 8 0 0 1-16 0z"/><line x1="12" y1="11" x2="12" y2="4"/><line x1="8" y1="21" x2="16" y2="21"/></svg>
+        <span>Dishes</span>
+      </button>
+      <button data-tab="guide">
+        <svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h6v18H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-6v18h6a2 2 0 0 1 2 2z"/></svg>
+        <span>Guide</span>
+      </button>
+      <button data-tab="settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+    <button class="btn ghost small noprint" id="exportTop" onclick="exportData()" title="Download full backup (all profiles)">Export</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="tabpane on" id="pane-plan"></section>
+  <section class="tabpane" id="pane-grocery"></section>
+  <section class="tabpane" id="pane-dishes"></section>
+  <section class="tabpane" id="pane-guide"></section>
+  <section class="tabpane" id="pane-settings"></section>
+</main>
+
+<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+<div id="tour"></div>
+
+<script src="data-gujarati.js"></script>
+<script src="data-north-mex.js"></script>
+<script src="data-south-street.js"></script>
+<script src="data-extras.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
